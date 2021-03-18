@@ -42,7 +42,6 @@ i = 0
 for r in dataset["query_result"]["data"]["rows"]:
   props = json.loads(r["payload"])
   props['stackTraces'] = props['stack_traces']
-  #pp.pprint(props)
   #props["payload"]["metadata"] = json.loads(r["metadata"])
   payload = symbolicate(props)
   sig = sig_of_sym(payload)
@@ -50,9 +49,11 @@ for r in dataset["query_result"]["data"]["rows"]:
     continue
   if sig == 'EMPTY: no crashing thread identified':
       pp.pprint(props)
-  if sig == "<T>":
-      pp.pprint(payload)
-      func = payload['threads'][payload['crashing_thread']]['frames'][0]['function']
+  elif 'function' not in payload['threads'][payload['crashing_thread']]['frames'][0]:
+      #breakpoint()
+
+      payload = symbolicate(props)
+      sig = payload['threads'][payload['crashing_thread']]['frames'][0]['module']
       sig = func
       func = payload['threads'][payload['crashing_thread']]['frames'][0]['normalized']
       frame = 0
@@ -60,6 +61,7 @@ for r in dataset["query_result"]["data"]["rows"]:
         func = payload['threads'][payload['crashing_thread']]['frames'][frame]['normalized']
         frame += 1
       sig += " | " + func
+
   if len(sig) > 200:
       sig = sig[0:200]
   sig += " - " + str(props['metadata']['moz_crash_reason'])
