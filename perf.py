@@ -6,9 +6,9 @@
 # Using https://sql.telemetry.mozilla.org/queries/78742/source
 # you can get an API key url https://sql.telemetry.mozilla.org/api/queries/78742/results.json?api_key=[key]
 # for a results.json. Download that and then run this script.
-
+import sys
 import json
-with open('results.json') as f:
+with open(sys.argv[1]) as f:
   dataset = json.load(f)
 props = []
 #for r in dataset["query_result"]["data"]["rows"]:
@@ -42,6 +42,16 @@ i = 0
 time = 0
 for r in dataset["query_result"]["data"]["rows"]:
   props = json.loads(r["payload"])
+  print("swapper     0/0     [000] " + str(time) + ":          1 cycles:")
+  
+  if not props['stack_traces']:
+      print("\tffffffffb8c08b8b MISSING_STACK (MT)")
+      print("")
+      continue
+  if not props['stack_traces']['crash_info']:
+      print("\tffffffffb8c08b8b MISSING_CRASH_INFO (MT)")
+      print("")
+      continue
   props['stackTraces'] = props['stack_traces']
   #props["payload"]["metadata"] = json.loads(r["metadata"])
   payload = symbolicate(props)
@@ -49,16 +59,32 @@ for r in dataset["query_result"]["data"]["rows"]:
   sig = sig_of_sym(payload)
   #pp.pprint(payload)
   if len(sig) == 0:
-    continue
+      #breakpoint()
+      #symbolicate(props)
+      print("\tffffffffb8c08b8b EMPTY_SIG (MT)")
+      print("")
+      continue
   if sig == 'EMPTY: no crashing thread identified':
+      print("\tffffffffb8c08b8b NO_CRASHING_THREAD (MT)")
+      print("")
       continue
       #pp.pprint(props)
   frame = 0
-  print("swapper     0/0     [000] " + str(time) + ":          1 cycles:")
+  #ip = "ffffffffb8c08b8b"
+  #pp.pprint(props)
+
+  # use sha256 hash as the ip so we can easily find the raw crash data later
+  ip = props['minidump_sha256_hash']
   while True:
+     if 'crashing_thread' not in payload:
+        print("\tffffffffb8c08b8b MISSING_THREAD (MT)")
+        break
+     if payload['crashing_thread'] >= len(payload['threads']):
+        print("\tffffffffb8c08b8b MISSING_THREAD_STACK (MT)")
+        break
      func = payload['threads'][payload['crashing_thread']]['frames'][frame]['normalized']
      mod = payload['threads'][payload['crashing_thread']]['frames'][frame]['module']
-     print("\tffffffffb8c08b8b " + func + " (" + mod + ")")
+     print("\t" + ip + " " + func + " (" + mod + ")")
      frame += 1
      if frame >= len(payload['threads'][payload['crashing_thread']]['frames']):
          break
@@ -74,6 +100,8 @@ for r in dataset["query_result"]["data"]["rows"]:
   os.makedirs("crashes/" + sig, exist_ok=True)
   with open("crashes/" + sig + "/" + props["crash_id"], "w") as fout:
      fout.write(pprint.pformat(payload))
+  with open("crashes/" + sig + "/" + props["crash_id"] + ".raw", "w") as fout:
+     fout.write(pprint.pformat(props))
   #print(sig)
   #pp.pprint(sigs)
   #break
