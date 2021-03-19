@@ -42,6 +42,8 @@ i = 0
 time = 0
 for r in dataset["query_result"]["data"]["rows"]:
   props = json.loads(r["payload"])
+  if props['metadata']['oom_allocation_size']:
+      continue
   print("swapper     0/0     [000] " + str(time) + ":          1 cycles:")
   
   if not props['stack_traces']:
@@ -52,9 +54,9 @@ for r in dataset["query_result"]["data"]["rows"]:
       print("\tffffffffb8c08b8b MISSING_CRASH_INFO (MT)")
       print("")
       continue
-  props['stackTraces'] = props['stack_traces']
+  #props['stackTraces'] = props['stack_traces']
   #props["payload"]["metadata"] = json.loads(r["metadata"])
-  payload = symbolicate(props)
+  payload = symbolicate(r)
   #pp.pprint(payload)
   sig = sig_of_sym(payload)
   #pp.pprint(payload)

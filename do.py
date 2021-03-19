@@ -38,30 +38,11 @@ sigs = Counter()
 import os
 import pprint
 pp = pprint.PrettyPrinter(indent=4)
-i = 0
 for r in dataset["query_result"]["data"]["rows"]:
   props = json.loads(r["payload"])
-  props['stackTraces'] = props['stack_traces']
-  #props["payload"]["metadata"] = json.loads(r["metadata"])
-  payload = symbolicate(props)
+  payload = symbolicate(r)
   sig = sig_of_sym(payload)
-  if len(sig) == 0:
-    continue
-  if sig == 'EMPTY: no crashing thread identified':
-      pp.pprint(props)
-  elif 'function' not in payload['threads'][payload['crashing_thread']]['frames'][0]:
-      #breakpoint()
-
-      payload = symbolicate(props)
-      sig = payload['threads'][payload['crashing_thread']]['frames'][0]['module']
-      sig = func
-      func = payload['threads'][payload['crashing_thread']]['frames'][0]['normalized']
-      frame = 0
-      while "<T>" in func and frame < len(payload['threads'][payload['crashing_thread']]['frames']):
-        func = payload['threads'][payload['crashing_thread']]['frames'][frame]['normalized']
-        frame += 1
-      sig += " | " + func
-
+  
   if len(sig) > 200:
       sig = sig[0:200]
   sig += " - " + str(props['metadata']['moz_crash_reason'])
@@ -70,7 +51,5 @@ for r in dataset["query_result"]["data"]["rows"]:
   os.makedirs("crashes/" + sig, exist_ok=True)
   with open("crashes/" + sig + "/" + props["crash_id"], "w") as fout:
      fout.write(pprint.pformat(payload))
-  print(sig)
+  #print(sig)
   pp.pprint(sigs)
-#pp.pprint(sigs)
-#print(sigs)
