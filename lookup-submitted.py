@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Looks for submitted crashes that match the telemetry crash ping using the minidump_sha256_hash
+# and produces a hash-to-uuid.json file that maps one to the other
+
 # Using https://sql.telemetry.mozilla.org/queries/78742/source
 # you can get an API key url https://sql.telemetry.mozilla.org/api/queries/78742/results.json?api_key=[key]
 # for a results.json. Download that and then run this script.
@@ -10,6 +13,7 @@ import pprint
 import itertools
 import datetime
 import time
+import requests
 
 with open(sys.argv[1]) as f:
   dataset = json.load(f)
@@ -42,18 +46,21 @@ def chunked_iterable(iterable, size):
 print("looking up hashes...")
 sha256_map = {}
 count = 0
+# we'll look hashes 32 at a time
+# hits defaults to 100 so we shouldn't have to worry about pagination
 for sha256s in chunked_iterable(minidumps, 32):
-    import requests
-    sleep_time = 0
     count += len(sha256s)
     q = "&".join(["minidump_sha256_hash=" + sha256 for sha256 in sha256s])
+
     end_date = datetime.date.today()
     days = datetime.timedelta(7)
     start_date = end_date - days
     
+    sleep_time = 0
     while True:
         minidump_query = "https://crash-stats.mozilla.org/api/SuperSearch/?" + q + "&date=%3E%3D" + str(start_date) + "&date=%3C" + str(end_date) + "&_facets=signature&_columns=uuid&_columns=minidump_sha256_hash"
         response = requests.get(minidump_query)
+        # retry with more and more sleep until we succeed
         if response.status_code == 429:
             print("waiting: " + str(sleep_time))
             time.sleep(sleep_time)
@@ -61,12 +68,14 @@ for sha256s in chunked_iterable(minidumps, 32):
             continue
         else:
             break
+    
     hits = response.json()['hits']
     if len(hits) > 0:
-
         print(hits)
         print(str(count) + " of " + str(len(minidumps)))
         for h in hits:
             sha256_map[h['minidump_sha256_hash']] = h['uuid']
+
+# dump the results in hash-to-uuid.json
 with open('hash-to-uuid.json', 'w') as fp:
     json.dump(sha256_map, fp)
